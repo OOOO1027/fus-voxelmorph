@@ -1,0 +1,4 @@
+/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/training_assets/npz/padded_canonical/previous_S14__current_S9__plane.npz
+/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/training_assets/npz/padded_canonical/previous_S2__current_S3__plane.npz
+/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/training_assets/npz/padded_canonical/previous_S3__current_S2__plane.npz
+/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/training_assets/npz/padded_canonical/previous_S9__current_S14__plane.npz

@@ -1,0 +1,47 @@
+{
+  "comparison_targets": [
+    "pre",
+    "stage3b_backbone",
+    "dl_output"
+  ],
+  "baseline_contract": {
+    "default_classical_benchmark": "stage3b_backbone",
+    "stage4a_status": "exploratory_note_only_not_default_baseline"
+  },
+  "primary_anatomy_metrics": [
+    {
+      "metric_id": "ncc",
+      "target": "neurovascular_map",
+      "mask_aware_for_padded_assets": 1
+    },
+    {
+      "metric_id": "edge_ncc",
+      "target": "neurovascular_map",
+      "mask_aware_for_padded_assets": 1
+    }
+  ],
+  "visualization_protocol": {
+    "required_views": [
+      "overlay",
+      "checkerboard",
+      "absolute_difference",
+      "triptych"
+    ],
+    "render_full_frame": 1,
+    "valid_mask_overlay_available": 1,
+    "mask_cropped_only_policy": 0
+  },
+  "functional_eval_hook": {
+    "status": "optional_downstream_only",
+    "source_reference": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/stage3b/summaries/validation_transfer_summary.csv",
+    "intended_use": [
+      "sanity_check",
+      "future_extension"
+    ]
+  },
+  "mask_usage_reference": {
+    "training_similarity_loss_mask_aware": 1,
+    "eval_metrics_mask_aware": 1,
+    "visualization_mask_aware": 0
+  }
+}

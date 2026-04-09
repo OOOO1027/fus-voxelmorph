@@ -1,0 +1,57 @@
+# fUS-VoxelMorph Default Configuration
+# =====================================
+
+# Data Configuration
+# ------------------
+data_path: "data/fus_frames/"       # Path to data directory or file
+synthetic: false                     # Use synthetic data
+synthetic_samples: 1000              # Number of synthetic samples
+pair_mode: "consecutive"             # consecutive | random | to_reference | sliding_window
+val_split: 0.1                       # Validation split ratio
+
+# Model Architecture
+# ------------------
+in_channels: 1                       # Input channels (1 for fUS)
+enc_channels: [16, 32, 32, 32]       # Encoder channels
+dec_channels: [32, 32, 32, 32, 16, 16]  # Decoder channels
+integration_steps: 7                 # Integration steps (0 = no diffeomorphic)
+
+# Loss Configuration
+# ------------------
+similarity: "ncc"                    # Similarity loss: ncc | mse
+ncc_win_size: 9                      # NCC window size
+reg_type: "grad"                     # Regularization: grad | diffusion
+reg_weight: 1.0                      # Regularization weight (lambda)
+reg_penalty: "l2"                    # Regularization penalty: l1 | l2
+
+# Training Configuration
+# ----------------------
+epochs: 200                          # Total training epochs
+batch_size: 8                        # Batch size
+lr: 1.0e-4                           # Learning rate
+weight_decay: 0.0                    # Weight decay (L2)
+lr_scheduler: "cosine"               # cosine | step | plateau | exponential | warmup_cosine | none
+early_stopping: null                 # Early stopping patience (null to disable)
+
+# Data Augmentation
+# -----------------
+augment: true                        # Enable augmentation
+rotation: 5.0                        # Max rotation (degrees)
+translation: 5.0                     # Max translation (pixels)
+noise_std: 0.02                      # Noise standard deviation
+
+# Logging & Checkpointing
+# -----------------------
+save_dir: "checkpoints"              # Directory for checkpoints
+log_dir: "runs"                      # Directory for TensorBoard logs
+log_interval: 10                     # Log every N batches
+vis_interval: 50                     # Visualize every N batches
+save_interval: 20                    # Save checkpoint every N epochs
+use_tensorboard: true                # Enable TensorBoard
+num_vis_samples: 4                   # Number of samples to visualize
+
+# System Configuration
+# --------------------
+device: "cuda"                       # Device: cuda | cpu
+num_workers: 4                       # Data loading workers
+seed: 42                             # Random seed

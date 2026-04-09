@@ -1,0 +1,9 @@
+pair_id,plan_pre_ncc,summary_pre_ncc,plan_stage3b_ncc,summary_stage3b_ncc,summary_dl_ncc,shape_group,has_padding_zeros,log_percentile_collapse,root_cause
+S2→S5,0.607,0.0,0.726,0.726,0.0,"(128,132)",No,Yes,log_transform maps all values to ~1.0 then percentile normalization collapses to zeros
+S5→S2,0.607,0.0,0.700,0.700,0.0,"(128,132)",No,Yes,log_transform maps all values to ~1.0 then percentile normalization collapses to zeros
+S2→S3,0.855,0.0,0.858,0.858,0.0,"(128,132)",No,Yes,log_transform maps all values to ~1.0 then percentile normalization collapses to zeros
+S3→S2,0.855,0.0,0.860,0.860,0.0,"(128,132)",No,Yes,log_transform maps all values to ~1.0 then percentile normalization collapses to zeros
+S14→S16,0.860,0.909,0.897,0.897,0.998,"(128,127)",Yes,No,padding zeros provide percentile spread — works correctly
+S16→S14,0.860,0.909,0.856,0.856,0.997,"(128,127)",Yes,No,padding zeros provide percentile spread — works correctly
+S14→S9,0.735,0.909,0.721,0.721,0.997,"(128,127)",Yes,No,padding zeros provide percentile spread — works correctly
+S9→S14,0.735,0.860,0.698,0.698,0.993,"(128,127)",Yes,No,padding zeros provide percentile spread — works correctly

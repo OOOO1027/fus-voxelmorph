@@ -1,0 +1,293 @@
+{
+  "stage_name": "dl_prep",
+  "frozen_task_definition": {
+    "task": "cross-session anatomy-only image-to-image registration on neurovascular_map",
+    "optional_prealignment": "stage3b_backbone final rigid prealignment",
+    "formal_v1_pair_dataset_definition": "24 Stage 3B eligible exact-match directed pairs"
+  },
+  "excluded_task_definitions": [
+    "functional_primary_registration",
+    "state_or_label_driven_training_inputs",
+    "fdop_driven_primary_loss",
+    "new_classical_tuning",
+    "nonrigid_teacher_salvage",
+    "within_session_frame_level_motion_correction_mainline"
+  ],
+  "baseline_definition": {
+    "default_classical_benchmark": "stage3b_backbone",
+    "benchmark_characterization": "validated anatomy-first rigid-only plane-level backbone",
+    "stage4a_status": "exploratory_note_only_not_default_baseline",
+    "ground_truth_disclaimer": "stage3b_backbone is a benchmark/reference, not perfect ground-truth deformation"
+  },
+  "dataset_contract": {
+    "sample_unit": "directed_pair",
+    "pair_id_definition": "plane_pair_id",
+    "direction_field": "previous_to_current",
+    "primary_training_fields": [
+      "moving_raw",
+      "fixed_raw",
+      "moving_rigid",
+      "valid_mask",
+      "native_shape_hw",
+      "canvas_shape_hw",
+      "split"
+    ],
+    "raw_input_definition": "moving_raw and fixed_raw are neurovascular_map images loaded from raw session files",
+    "rigid_prealigned_input_definition": "moving_rigid is the previous neurovascular_map after frozen Stage 3B final rigid transform",
+    "formal_v1_dataset_scope": "formal_v1_dl_pair_dataset_only"
+  },
+  "split_rules": {
+    "split_strategy_name": "pair_group_main_v1",
+    "formal_v1_dataset_scope": "24 Stage 3B directed pairs only",
+    "split_unit": "undirected_pair_group",
+    "reverse_direction_pairs_co_located": 1,
+    "directed_pair_cross_split_allowed": 0,
+    "group_assignments": {
+      "train": [
+        "S1__S2",
+        "S1__S3",
+        "S1__S5",
+        "S3__S5",
+        "S14__S7",
+        "S16__S7",
+        "S16__S9",
+        "S7__S9"
+      ],
+      "val": [
+        "S14__S16",
+        "S2__S5"
+      ],
+      "test": [
+        "S14__S9",
+        "S2__S3"
+      ]
+    },
+    "split_stats": {
+      "train": {
+        "n_pairs": 16,
+        "sessions": [
+          "S1",
+          "S14",
+          "S16",
+          "S2",
+          "S3",
+          "S5",
+          "S7",
+          "S9"
+        ],
+        "undirected_groups": [
+          "S14__S7",
+          "S16__S7",
+          "S16__S9",
+          "S1__S2",
+          "S1__S3",
+          "S1__S5",
+          "S3__S5",
+          "S7__S9"
+        ],
+        "shape_group_counts": {
+          "(128, 127)": 8,
+          "(128, 132)": 8
+        },
+        "pilot_count": 2,
+        "nonpilot_count": 14,
+        "hard_case_count": 3
+      },
+      "val": {
+        "n_pairs": 4,
+        "sessions": [
+          "S14",
+          "S16",
+          "S2",
+          "S5"
+        ],
+        "undirected_groups": [
+          "S14__S16",
+          "S2__S5"
+        ],
+        "shape_group_counts": {
+          "(128, 127)": 2,
+          "(128, 132)": 2
+        },
+        "pilot_count": 1,
+        "nonpilot_count": 3,
+        "hard_case_count": 2
+      },
+      "test": {
+        "n_pairs": 4,
+        "sessions": [
+          "S14",
+          "S2",
+          "S3",
+          "S9"
+        ],
+        "undirected_groups": [
+          "S14__S9",
+          "S2__S3"
+        ],
+        "shape_group_counts": {
+          "(128, 127)": 2,
+          "(128, 132)": 2
+        },
+        "pilot_count": 1,
+        "nonpilot_count": 3,
+        "hard_case_count": 3
+      },
+      "hard_case_subset": {
+        "n_pairs": 8,
+        "sessions": [
+          "S14",
+          "S16",
+          "S2",
+          "S3",
+          "S5",
+          "S7",
+          "S9"
+        ],
+        "undirected_groups": [
+          "S14__S16",
+          "S14__S9",
+          "S16__S7",
+          "S2__S3",
+          "S2__S5",
+          "S7__S9"
+        ],
+        "shape_group_counts": {
+          "(128, 127)": 6,
+          "(128, 132)": 2
+        },
+        "pilot_count": 4,
+        "nonpilot_count": 4,
+        "hard_case_count": 8
+      }
+    },
+    "hard_case_policy": {
+      "methodological_drop_pairs_included": 1,
+      "stage3b_tier2_diagnostic_pairs_included": 1,
+      "hard_case_reason_field": "hard_case_reason"
+    },
+    "session_aware_holdout_proposal": {
+      "proposal_name": "session_aware_holdout_future_proposal",
+      "status": "proposal_only_not_active_in_v1",
+      "cohort_holdouts": {
+        "(128, 132)": {
+          "held_out_session": "S5",
+          "held_out_undirected_groups": [
+            "S1__S5",
+            "S2__S5",
+            "S3__S5"
+          ]
+        },
+        "(128, 127)": {
+          "held_out_session": "S14",
+          "held_out_undirected_groups": [
+            "S14__S16",
+            "S14__S7",
+            "S14__S9"
+          ]
+        }
+      },
+      "rationale": "future stricter generalization benchmark that holds out entire sessions within each shape cohort"
+    }
+  },
+  "leakage_control_policy": {
+    "split_unit": "undirected_pair_group",
+    "reverse_direction_pairs_co_located": 1,
+    "directed_pair_cross_split_allowed": 0,
+    "future_stricter_proposal": {
+      "proposal_name": "session_aware_holdout_future_proposal",
+      "status": "proposal_only_not_active_in_v1",
+      "cohort_holdouts": {
+        "(128, 132)": {
+          "held_out_session": "S5",
+          "held_out_undirected_groups": [
+            "S1__S5",
+            "S2__S5",
+            "S3__S5"
+          ]
+        },
+        "(128, 127)": {
+          "held_out_session": "S14",
+          "held_out_undirected_groups": [
+            "S14__S16",
+            "S14__S7",
+            "S14__S9"
+          ]
+        }
+      },
+      "rationale": "future stricter generalization benchmark that holds out entire sessions within each shape cohort"
+    }
+  },
+  "training_asset_format_definition": {
+    "shape_policy": "export_both_native_and_padded_canonical",
+    "canonical_canvas_rule": "max_envelope_over_formal_v1_pair_dataset_native_shapes",
+    "canonical_canvas_derivation_scope": "formal_v1_dl_pair_dataset_only",
+    "canonical_canvas_hw": [
+      128,
+      132
+    ],
+    "canonical_canvas_fact_note": "current formal v1 dataset derives canonical canvas 128 x 132; this is not derived from Stage 1 full-session shape statistics",
+    "padding_policy": "center_symmetric_with_explicit_offsets",
+    "resampling_policy": "no_resampling",
+    "cropping_policy": "no_cropping",
+    "required_npz_keys": [
+      "pair_id",
+      "moving_raw",
+      "fixed_raw",
+      "moving_rigid",
+      "valid_mask",
+      "native_shape_hw",
+      "canvas_shape_hw",
+      "pad_top",
+      "pad_bottom",
+      "pad_left",
+      "pad_right",
+      "previous_session",
+      "current_session",
+      "shape_group"
+    ],
+    "canvas_derivation_evidence_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/summaries/canvas_derivation_evidence.csv"
+  },
+  "mask_usage_policy": {
+    "training_similarity_loss_mask_aware": 1,
+    "training_similarity_loss_mask_source": "valid_mask",
+    "eval_metrics_mask_aware": 1,
+    "eval_metrics_mask_source": "valid_mask",
+    "visualization_mask_aware": 0,
+    "visualization_mask_overlay_available": 1,
+    "native_assets_use_all_ones_mask": 1
+  },
+  "eval_protocol_definition": {
+    "comparison_targets": [
+      "pre",
+      "stage3b_backbone",
+      "dl_output"
+    ],
+    "primary_anatomy_metrics": [
+      "ncc(neurovascular_map)",
+      "edge_ncc(neurovascular_map)"
+    ],
+    "functional_eval_hook": "optional_downstream_only"
+  },
+  "future_extension_hooks": [
+    "alternative_anatomy_like_anchors",
+    "rigid_plus_residual_hybrid_model",
+    "functional_auxiliary_evaluation_hooks",
+    "full_sequence_downstream_evaluation"
+  ],
+  "key_output_paths": {
+    "pair_dataset_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/manifests/pair_dataset.csv",
+    "pair_dataset_json": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/manifests/pair_dataset.json",
+    "train_pairs_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/splits/train_pairs.csv",
+    "val_pairs_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/splits/val_pairs.csv",
+    "test_pairs_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/splits/test_pairs.csv",
+    "hard_case_pairs_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/splits/hard_case_pairs.csv",
+    "split_meta_json": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/splits/split_meta.json",
+    "training_assets_manifest_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/training_assets/manifests/training_assets_manifest.csv",
+    "eval_protocol_json": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/eval/eval_protocol.json",
+    "baseline_reference_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/eval/baseline_reference.csv",
+    "canvas_derivation_evidence_csv": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/summaries/canvas_derivation_evidence.csv",
+    "dl_prep_meta_json": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/outputs/dl_prep/summaries/dl_prep_meta.json",
+    "report_path": "/home/zhangtaoouyang/new_work/Session_Level_Pairwise_Baseline/reports/dl_prep_summary.md"
+  }
+}

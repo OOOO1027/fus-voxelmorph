@@ -1,0 +1,154 @@
+{
+  "split_strategy_name": "pair_group_main_v1",
+  "formal_v1_dataset_scope": "24 Stage 3B directed pairs only",
+  "split_unit": "undirected_pair_group",
+  "reverse_direction_pairs_co_located": 1,
+  "directed_pair_cross_split_allowed": 0,
+  "group_assignments": {
+    "train": [
+      "S1__S2",
+      "S1__S3",
+      "S1__S5",
+      "S3__S5",
+      "S14__S7",
+      "S16__S7",
+      "S16__S9",
+      "S7__S9"
+    ],
+    "val": [
+      "S14__S16",
+      "S2__S5"
+    ],
+    "test": [
+      "S14__S9",
+      "S2__S3"
+    ]
+  },
+  "split_stats": {
+    "train": {
+      "n_pairs": 16,
+      "sessions": [
+        "S1",
+        "S14",
+        "S16",
+        "S2",
+        "S3",
+        "S5",
+        "S7",
+        "S9"
+      ],
+      "undirected_groups": [
+        "S14__S7",
+        "S16__S7",
+        "S16__S9",
+        "S1__S2",
+        "S1__S3",
+        "S1__S5",
+        "S3__S5",
+        "S7__S9"
+      ],
+      "shape_group_counts": {
+        "(128, 127)": 8,
+        "(128, 132)": 8
+      },
+      "pilot_count": 2,
+      "nonpilot_count": 14,
+      "hard_case_count": 3
+    },
+    "val": {
+      "n_pairs": 4,
+      "sessions": [
+        "S14",
+        "S16",
+        "S2",
+        "S5"
+      ],
+      "undirected_groups": [
+        "S14__S16",
+        "S2__S5"
+      ],
+      "shape_group_counts": {
+        "(128, 127)": 2,
+        "(128, 132)": 2
+      },
+      "pilot_count": 1,
+      "nonpilot_count": 3,
+      "hard_case_count": 2
+    },
+    "test": {
+      "n_pairs": 4,
+      "sessions": [
+        "S14",
+        "S2",
+        "S3",
+        "S9"
+      ],
+      "undirected_groups": [
+        "S14__S9",
+        "S2__S3"
+      ],
+      "shape_group_counts": {
+        "(128, 127)": 2,
+        "(128, 132)": 2
+      },
+      "pilot_count": 1,
+      "nonpilot_count": 3,
+      "hard_case_count": 3
+    },
+    "hard_case_subset": {
+      "n_pairs": 8,
+      "sessions": [
+        "S14",
+        "S16",
+        "S2",
+        "S3",
+        "S5",
+        "S7",
+        "S9"
+      ],
+      "undirected_groups": [
+        "S14__S16",
+        "S14__S9",
+        "S16__S7",
+        "S2__S3",
+        "S2__S5",
+        "S7__S9"
+      ],
+      "shape_group_counts": {
+        "(128, 127)": 6,
+        "(128, 132)": 2
+      },
+      "pilot_count": 4,
+      "nonpilot_count": 4,
+      "hard_case_count": 8
+    }
+  },
+  "hard_case_policy": {
+    "methodological_drop_pairs_included": 1,
+    "stage3b_tier2_diagnostic_pairs_included": 1,
+    "hard_case_reason_field": "hard_case_reason"
+  },
+  "session_aware_holdout_proposal": {
+    "proposal_name": "session_aware_holdout_future_proposal",
+    "status": "proposal_only_not_active_in_v1",
+    "cohort_holdouts": {
+      "(128, 132)": {
+        "held_out_session": "S5",
+        "held_out_undirected_groups": [
+          "S1__S5",
+          "S2__S5",
+          "S3__S5"
+        ]
+      },
+      "(128, 127)": {
+        "held_out_session": "S14",
+        "held_out_undirected_groups": [
+          "S14__S16",
+          "S14__S7",
+          "S14__S9"
+        ]
+      }
+    },
+    "rationale": "future stricter generalization benchmark that holds out entire sessions within each shape cohort"
+  }
+}

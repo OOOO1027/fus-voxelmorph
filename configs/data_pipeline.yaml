@@ -1,0 +1,151 @@
+# fUS-VoxelMorph 数据管道配置
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 数据路径
+# ═══════════════════════════════════════════════════════════════════════════
+
+data:
+  # 数据路径：可以是文件夹（多个 .npy/.mat 文件）或单个时间序列文件
+  data_path: "data/fus_frames/"
+
+  # 数据类型: "real" (真实数据) 或 "synthetic" (合成数据)
+  type: "real"
+
+  # 合成数据配置（当 type="synthetic" 时有效）
+  synthetic:
+    n_samples: 1000           # 合成样本数量
+    motion_type: "mixed"      # random | cardiac | breathing | mixed
+    max_displacement: 10      # 最大位移（像素）
+    noise_level: 0.05         # 噪声水平
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 预处理配置
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # 目标尺寸 (H, W)，fUS 通常为 (128, 100)
+  target_size: [128, 100]
+
+  # 归一化方法: "minmax", "percentile", 或 null (不归一化)
+  # Power Doppler 信号高度偏斜，推荐使用 percentile 归一化
+  normalize: "percentile"
+
+  # Percentile 归一化的参数（仅在 normalize="percentile" 时有效）
+  percentile: [1, 99]
+
+  # 是否应用 log 变换（压缩动态范围）
+  # Power Doppler 强度跨越数个数量级，推荐开启
+  log_transform: true
+
+  # 高斯平滑 sigma（null 表示不应用）
+  gaussian_sigma: null
+
+  # MATLAB 文件变量名
+  mat_key: "data"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 数据增强配置（训练时）
+  # ═══════════════════════════════════════════════════════════════════════
+
+  augmentation:
+    enabled: true
+
+    # 随机仿射变换
+    affine:
+      enabled: true
+      rotation: 5             # 最大旋转角度（度）
+      translation: 5          # 最大平移（像素）
+      scale: [0.95, 1.05]     # 缩放范围
+      p: 0.5                  # 应用概率
+
+    # 随机强度噪声
+    intensity:
+      enabled: true
+      noise_std: 0.02         # 高斯噪声标准差
+      multiplicative_range: [0.95, 1.05]  # 乘性噪声范围
+      brightness_range: [-0.05, 0.05]     # 亮度调整范围
+      p: 0.5
+
+    # 随机裁剪
+    crop:
+      enabled: true
+      scale: [0.9, 1.0]       # 裁剪比例
+      p: 0.3
+
+    # 弹性变形（B-spline 风格，最关键的增广）
+    elastic:
+      enabled: true
+      grid_size: 5             # 控制点网格边长
+      magnitude: 4.0           # 最大位移幅度（像素）
+      p: 0.5
+
+    # 水平翻转
+    flip:
+      enabled: true
+      p: 0.5
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 配对策略配置
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # 配对模式: "consecutive", "random", "to_reference", "sliding_window"
+  pair_mode: "consecutive"
+
+  # 参考帧索引（用于 to_reference 模式）
+  ref_idx: 0
+
+  # 滑动窗口大小（用于 sliding_window 模式）
+  window_size: 5
+
+  # 最大配对数（null 表示使用全部）
+  max_pairs: null
+
+  # 验证集比例
+  val_split: 0.1
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DataLoader 配置
+# ═══════════════════════════════════════════════════════════════════════════
+
+dataloader:
+  batch_size: 4
+  num_workers: 4              # 数据加载进程数
+  pin_memory: true            # 使用固定内存（加速 GPU 传输）
+  drop_last: true             # 丢弃不完整的最后一个 batch
+  shuffle: true               # 训练时打乱数据
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 模型配置
+# ═══════════════════════════════════════════════════════════════════════════
+
+model:
+  in_channels: 1
+  enc_channels: [16, 32, 32, 32]
+  dec_channels: [32, 32, 32, 32, 16, 16]
+  integration_steps: 7
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 损失配置
+# ═══════════════════════════════════════════════════════════════════════════
+
+loss:
+  similarity: "ncc"
+  ncc_win_size: 9
+  reg_type: "grad"
+  reg_weight: 1.0
+  reg_penalty: "l2"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 训练配置
+# ═══════════════════════════════════════════════════════════════════════════
+
+train:
+  epochs: 200
+  lr: 1.0e-4
+  weight_decay: 0.0
+  lr_scheduler: "cosine"
+  save_dir: "checkpoints/"
+  log_interval: 10
+  save_interval: 20
+
+# 设备
+device: "cuda"

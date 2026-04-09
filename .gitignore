@@ -1,0 +1,37 @@
+# OS / editor
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local tooling
+.claude/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# External dependency snapshot kept outside the main repo history for now
+voxelmorph-src/
+
+# Training artifacts
+checkpoints/**/*.pth
+checkpoints/**/*.pt
+checkpoints/**/*.ckpt
+checkpoints/**/training.log
+checkpoints/**/training_log.txt
+checkpoints_test/
+runs/
+eval_results/
+
+# Generated result blobs
+results/**/*.npy
+results/**/metrics.json
+
+# Prepared training asset binaries
+data/**/training_assets/npz/
