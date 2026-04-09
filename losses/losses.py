@@ -252,9 +252,9 @@ class Diffusion(nn.Module):
             m_d2y = mask[:, :, 2:, :] * mask[:, :, 1:-1, :] * mask[:, :, :-2, :]
             m_d2x = mask[:, :, :, 2:] * mask[:, :, :, 1:-1] * mask[:, :, :, :-2]
             m_dxy = mask[:, :, 1:, 1:] * mask[:, :, 1:, :-1] * mask[:, :, :-1, 1:] * mask[:, :, :-1, :-1]
-            loss = ((d2y.pow(2) * m_d2y).sum() / m_d2y.sum().clamp(min=1.0)
-                    + (d2x.pow(2) * m_d2x).sum() / m_d2x.sum().clamp(min=1.0)
-                    + 2 * (dxy.pow(2) * m_dxy).sum() / m_dxy.sum().clamp(min=1.0))
+            loss = (_masked_channel_mean(d2y.pow(2), m_d2y)
+                    + _masked_channel_mean(d2x.pow(2), m_d2x)
+                    + 2 * _masked_channel_mean(dxy.pow(2), m_dxy))
             return loss / 4.0
 
         loss = d2y.pow(2).mean() + d2x.pow(2).mean() + 2 * dxy.pow(2).mean()
@@ -291,9 +291,9 @@ class BendingEnergy(nn.Module):
             m_d2y = mask[:, :, 2:, :] * mask[:, :, 1:-1, :] * mask[:, :, :-2, :]
             m_d2x = mask[:, :, :, 2:] * mask[:, :, :, 1:-1] * mask[:, :, :, :-2]
             m_dxy = mask[:, :, 1:, 1:] * mask[:, :, 1:, :-1] * mask[:, :, :-1, 1:] * mask[:, :, :-1, :-1]
-            return ((d2y.pow(2) * m_d2y).sum() / m_d2y.sum().clamp(min=1.0)
-                    + (d2x.pow(2) * m_d2x).sum() / m_d2x.sum().clamp(min=1.0)
-                    + 2 * (dxy.pow(2) * m_dxy).sum() / m_dxy.sum().clamp(min=1.0))
+            return (_masked_channel_mean(d2y.pow(2), m_d2y)
+                    + _masked_channel_mean(d2x.pow(2), m_d2x)
+                    + 2 * _masked_channel_mean(dxy.pow(2), m_dxy))
 
         return d2y.pow(2).mean() + d2x.pow(2).mean() + 2 * dxy.pow(2).mean()
 
