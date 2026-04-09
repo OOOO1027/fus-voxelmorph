@@ -21,6 +21,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _masked_channel_mean(values, mask):
+    """Average masked per-pixel values across both spatial sites and channels."""
+    num_channels = values.shape[1]
+    normalizer = mask.sum().clamp(min=1.0) * num_channels
+    return (values * mask).sum() / normalizer
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Similarity losses
 # ═══════════════════════════════════════════════════════════════════════════
@@ -153,11 +160,11 @@ class Grad(nn.Module):
             mask_dx = (mask[:, :, :, 1:] * mask[:, :, :, :-1])  # (B, 1, H, W-1)
 
             if self.penalty == 'l2':
-                loss_dy = (dy.pow(2) * mask_dy).sum() / mask_dy.sum().clamp(min=1.0)
-                loss_dx = (dx.pow(2) * mask_dx).sum() / mask_dx.sum().clamp(min=1.0)
+                loss_dy = _masked_channel_mean(dy.pow(2), mask_dy)
+                loss_dx = _masked_channel_mean(dx.pow(2), mask_dx)
             else:
-                loss_dy = (dy.abs() * mask_dy).sum() / mask_dy.sum().clamp(min=1.0)
-                loss_dx = (dx.abs() * mask_dx).sum() / mask_dx.sum().clamp(min=1.0)
+                loss_dy = _masked_channel_mean(dy.abs(), mask_dy)
+                loss_dx = _masked_channel_mean(dx.abs(), mask_dx)
             return (loss_dy + loss_dx) / 2.0
 
         if self.penalty == 'l2':
