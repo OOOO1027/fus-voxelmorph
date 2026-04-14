@@ -17,7 +17,6 @@ Usage:
 """
 
 import argparse
-import glob
 import os
 import time
 
@@ -445,29 +444,6 @@ def train(cfg, resume_path=None):
     # 日志文件
     log_path = os.path.join(train_cfg['save_dir'], 'training_log.txt')
 
-    # 防止不同训练 run 复用同一 save_dir 导致 checkpoint / log 混杂。
-    if resume_path is None:
-        existing_artifacts = []
-        existing_artifacts.extend(glob.glob(os.path.join(train_cfg['save_dir'], 'checkpoint_epoch*.pth')))
-        existing_artifacts.extend(
-            path for path in [
-                os.path.join(train_cfg['save_dir'], 'best_model.pth'),
-                os.path.join(train_cfg['save_dir'], 'best_model_swa.pth'),
-                log_path,
-            ]
-            if os.path.exists(path)
-        )
-        if existing_artifacts:
-            raise RuntimeError(
-                "save_dir already contains training artifacts. "
-                "Use a new versioned save_dir for a fresh run, or pass --resume "
-                "to continue an existing run."
-            )
-
-    if resume_path is not None:
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(f"\nResuming from checkpoint: {resume_path}\n")
-
     for epoch in range(start_epoch, train_cfg['epochs'] + 1):
         # 更新正则化权重
         total_epochs = train_cfg['epochs']
@@ -485,6 +461,7 @@ def train(cfg, resume_path=None):
         t0 = time.time()
 
         optimizer.zero_grad()
+        accum_count = 0  # track actual steps in current accumulation group
         for step, batch in enumerate(train_loader):
             # 解析 batch（兼容两种数据模式）
             if data_mode == 'cross_session':
@@ -520,12 +497,23 @@ def train(cfg, resume_path=None):
                     warped, target, flow, mask=mask,
                 )
 
-            # 梯度累积：loss 除以累积步数
-            (loss / accumulate_steps).backward()
+            accum_count += 1
 
-            if (step + 1) % accumulate_steps == 0 or (step + 1) == len(train_loader):
+            # 梯度累积：loss 除以当前组的实际步数
+            # 对完整组用 accumulate_steps，对最后不完整组用实际余数
+            is_last_step = (step + 1) == len(train_loader)
+            is_accum_boundary = (step + 1) % accumulate_steps == 0
+            if is_last_step and not is_accum_boundary:
+                effective_accum = accum_count
+            else:
+                effective_accum = accumulate_steps
+
+            (loss / effective_accum).backward()
+
+            if is_accum_boundary or is_last_step:
                 optimizer.step()
                 optimizer.zero_grad()
+                accum_count = 0
 
             epoch_loss += loss.item()
             epoch_sim += sim_loss.item()
