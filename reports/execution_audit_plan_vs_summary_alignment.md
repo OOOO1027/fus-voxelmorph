@@ -162,4 +162,4 @@ fUS Power Doppler 数据值域 [5, 56] 已经比较温和，percentile 归一化
 ---
 
 **报告生成时间：** 2026-04-06
-**审计范围：** training_plan_v1_20260406.md vs `training_summary_cross_session_300epochs_20260406.md`（该 summary 已于 2026-04-09 删除，避免继续引用过时结论）
+**审计范围：** training_plan_v1_20260406.md vs training_summary_cross_session_300epochs_20260406.md

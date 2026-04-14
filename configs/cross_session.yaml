@@ -129,8 +129,8 @@ train:
   weight_decay: 0.0
   lr_scheduler: "warmup_cosine"    # 带 warmup 的 cosine
   warmup_epochs: 20
-  save_dir: "checkpoints/cross_session/runs/20260409_gpu_ms_ncc_337k/"  # 新 run 请复制并改成新目录，避免混写
-  log_dir: "runs/cross_session/20260409_gpu_ms_ncc_337k/"
+  save_dir: "checkpoints/cross_session/"
+  log_dir: "runs/cross_session/"
   log_interval: 5
   save_interval: 50
   early_stopping: 80          # patience

@@ -116,6 +116,11 @@ for split in ['train', 'val', 'test']:
         ref_pre_ncc = ref.get('pre_ncc', np.nan)
         ref_s3b_ncc = ref.get('stage3b_ncc', np.nan)
 
+        # Percentage improvements
+        dl_vs_pre_pct = ((dl_ncc - pre_ncc) / abs(pre_ncc) * 100) if pre_ncc != 0 else 0.0
+        dl_vs_s3b_pct = ((dl_ncc - ref_s3b_ncc) / abs(ref_s3b_ncc) * 100) if (not np.isnan(ref_s3b_ncc) and ref_s3b_ncc != 0) else np.nan
+        s3b_vs_pre_pct = ((ref_s3b_ncc - pre_ncc) / abs(pre_ncc) * 100) if (not np.isnan(ref_s3b_ncc) and pre_ncc != 0) else np.nan
+
         row = {
             'split': split,
             'pair_id': pid,
@@ -124,7 +129,11 @@ for split in ['train', 'val', 'test']:
             'preproc_pre_ncc': pre_ncc,
             'dl_ncc': dl_ncc,
             'dl_vs_stage3b': dl_ncc - ref_s3b_ncc if not np.isnan(ref_s3b_ncc) else np.nan,
+            'dl_vs_stage3b_pct': dl_vs_s3b_pct,
             'dl_vs_pre': dl_ncc - pre_ncc,
+            'dl_vs_pre_pct': dl_vs_pre_pct,
+            's3b_vs_pre_pct': s3b_vs_pre_pct,
+            'dl_beats_stage3b': (dl_ncc > ref_s3b_ncc) if not np.isnan(ref_s3b_ncc) else np.nan,
             'warped_min': warp_np.min(),
             'warped_max': warp_np.max(),
             'flow_mean_abs': np.abs(flow_np).mean(),
@@ -133,9 +142,13 @@ for split in ['train', 'val', 'test']:
         }
         all_results.append(row)
 
-        print(f"  [{split:5s}] {pid:45s}  pre={pre_ncc:.4f}  DL={dl_ncc:.4f}  "
-              f"S3B={ref_s3b_ncc:.4f}  DL-S3B={row['dl_vs_stage3b']:+.4f}" if not np.isnan(ref_s3b_ncc)
-              else f"  [{split:5s}] {pid:45s}  pre={pre_ncc:.4f}  DL={dl_ncc:.4f}")
+        # Per-pair output with percentage
+        if not np.isnan(ref_s3b_ncc):
+            win = " WIN" if dl_ncc > ref_s3b_ncc else ""
+            print(f"  [{split:5s}] {pid:40s}  pre={pre_ncc:.4f}  S3B={ref_s3b_ncc:.4f}({s3b_vs_pre_pct:+.1f}%)  "
+                  f"DL={dl_ncc:.4f}({dl_vs_pre_pct:+.1f}%, vs3B:{dl_vs_s3b_pct:+.1f}%){win}")
+        else:
+            print(f"  [{split:5s}] {pid:40s}  pre={pre_ncc:.4f}  DL={dl_ncc:.4f}({dl_vs_pre_pct:+.1f}%)")
 
 # ── Save CSV ──
 df = pd.DataFrame(all_results)
@@ -151,12 +164,30 @@ for split in ['train', 'val', 'test', 'all']:
     subset = df if split == 'all' else df[df['split'] == split]
     n = len(subset)
     print(f"\n  {split.upper()} ({n} pairs):")
-    print(f"    Pre NCC (preproc):  {subset['preproc_pre_ncc'].mean():.4f}")
-    print(f"    DL NCC:             {subset['dl_ncc'].mean():.4f}")
+    print(f"    Pre NCC:            {subset['preproc_pre_ncc'].mean():.4f}")
     if subset['ref_stage3b_ncc'].notna().any():
-        print(f"    Stage3B NCC (ref):  {subset['ref_stage3b_ncc'].mean():.4f}")
-        print(f"    DL vs Stage3B:      {subset['dl_vs_stage3b'].mean():+.4f}")
+        s3b_vals = subset['ref_stage3b_ncc'].dropna()
+        s3b_pct = subset['s3b_vs_pre_pct'].dropna()
+        print(f"    Stage3B NCC:        {s3b_vals.mean():.4f}  (vs pre: {s3b_pct.mean():+.1f}%)")
+    print(f"    DL NCC:             {subset['dl_ncc'].mean():.4f}  (vs pre: {subset['dl_vs_pre_pct'].mean():+.1f}%)")
+    if subset['dl_vs_stage3b_pct'].notna().any():
+        pct = subset['dl_vs_stage3b_pct'].dropna()
+        print(f"    DL vs Stage3B:      {pct.mean():+.1f}% NCC improvement")
+    if subset['dl_beats_stage3b'].notna().any():
+        wins = subset['dl_beats_stage3b'].dropna()
+        n_win = int(wins.sum())
+        n_total = len(wins)
+        print(f"    DL beats Stage3B:   {n_win}/{n_total} pairs ({n_win/n_total*100:.0f}%)")
     print(f"    Jac neg %:          {subset['jac_neg_pct'].mean():.2f}%")
+
+# Overall one-line verdict
+print("\n" + "-" * 70)
+if df['dl_vs_stage3b_pct'].notna().any():
+    overall_pct = df['dl_vs_stage3b_pct'].dropna().mean()
+    overall_wins = int(df['dl_beats_stage3b'].dropna().sum())
+    overall_total = len(df['dl_beats_stage3b'].dropna())
+    print(f"  VERDICT: DL vs Stage3B overall {overall_pct:+.1f}% NCC, "
+          f"wins {overall_wins}/{overall_total} ({overall_wins/overall_total*100:.0f}%)")
 
 print(f"\n{'='*70}")
 print("DONE")

@@ -109,18 +109,28 @@ def evaluate_cross_session(model, cfg, device, output_dir):
                     'ssim': compute_ssim(s3b_np, tgt_np),
                 }
 
+            # Percentage improvements
+            pre_ncc = pre_metrics['ncc']
+            dl_ncc = dl_metrics['ncc']
+            s3b_ncc = stage3b_metrics.get('ncc', None)
+
+            dl_vs_pre_pct = ((dl_ncc - pre_ncc) / abs(pre_ncc) * 100) if pre_ncc != 0 else 0.0
+            s3b_vs_pre_pct = ((s3b_ncc - pre_ncc) / abs(pre_ncc) * 100) if (s3b_ncc is not None and pre_ncc != 0) else None
+            dl_vs_s3b_pct = ((dl_ncc - s3b_ncc) / abs(s3b_ncc) * 100) if (s3b_ncc is not None and s3b_ncc != 0) else None
+
             row = {
                 'pair_id': pair_id,
                 # pre
-                'pre_ncc': pre_metrics['ncc'],
+                'pre_ncc': pre_ncc,
                 'pre_mse': pre_metrics['mse'],
                 'pre_ssim': pre_metrics['ssim'],
                 # stage3b
-                'stage3b_ncc': stage3b_metrics.get('ncc', None),
+                'stage3b_ncc': s3b_ncc,
                 'stage3b_mse': stage3b_metrics.get('mse', None),
                 'stage3b_ssim': stage3b_metrics.get('ssim', None),
+                'stage3b_vs_pre_pct': s3b_vs_pre_pct,
                 # dl_output
-                'dl_ncc': dl_metrics['ncc'],
+                'dl_ncc': dl_ncc,
                 'dl_mse': dl_metrics['mse'],
                 'dl_ssim': dl_metrics['ssim'],
                 'dl_ms_ssim': dl_metrics['ms_ssim'],
@@ -129,14 +139,15 @@ def evaluate_cross_session(model, cfg, device, output_dir):
                 'dl_jac_mean': dl_metrics['jac_mean'],
                 'dl_jac_pct_neg': dl_metrics['jac_pct_neg'],
                 # gain vs pre
-                'dl_ncc_gain_vs_pre': dl_metrics['ncc'] - pre_metrics['ncc'],
+                'dl_ncc_gain_vs_pre': dl_ncc - pre_ncc,
+                'dl_vs_pre_pct': dl_vs_pre_pct,
                 'dl_mse_gain_vs_pre': pre_metrics['mse'] - dl_metrics['mse'],
+                # gain vs stage3b
+                'dl_ncc_gain_vs_stage3b': (dl_ncc - s3b_ncc) if s3b_ncc is not None else None,
+                'dl_vs_stage3b_pct': dl_vs_s3b_pct,
+                'dl_mse_gain_vs_stage3b': (stage3b_metrics['mse'] - dl_metrics['mse']) if stage3b_metrics else None,
+                'dl_beats_stage3b': (dl_ncc > s3b_ncc) if s3b_ncc is not None else None,
             }
-
-            # gain vs stage3b
-            if stage3b_metrics:
-                row['dl_ncc_gain_vs_stage3b'] = dl_metrics['ncc'] - stage3b_metrics['ncc']
-                row['dl_mse_gain_vs_stage3b'] = stage3b_metrics['mse'] - dl_metrics['mse']
 
             all_results.append(row)
 
@@ -146,43 +157,65 @@ def evaluate_cross_session(model, cfg, device, output_dir):
             np.save(os.path.join(pair_dir, 'warped.npy'), warp_np)
             np.save(os.path.join(pair_dir, 'flow.npy'), flow_np)
 
+            # Per-pair output with percentage
             print(f"\n  [{pair_id}]")
-            print(f"    pre     NCC={pre_metrics['ncc']:.4f}  MSE={pre_metrics['mse']:.4f}")
+            print(f"    pre     NCC={pre_ncc:.4f}  SSIM={pre_metrics['ssim']:.4f}")
             if stage3b_metrics:
-                print(f"    stage3b NCC={stage3b_metrics['ncc']:.4f}  MSE={stage3b_metrics['mse']:.4f}")
-            print(f"    DL      NCC={dl_metrics['ncc']:.4f}  MSE={dl_metrics['mse']:.4f}  "
-                  f"SSIM={dl_metrics['ssim']:.4f}  Jac%%neg={dl_metrics['jac_pct_neg']:.1f}%")
+                print(f"    stage3b NCC={s3b_ncc:.4f}  SSIM={stage3b_metrics['ssim']:.4f}"
+                      f"  (vs pre: {s3b_vs_pre_pct:+.1f}%)")
+            win_marker = " WIN" if (dl_vs_s3b_pct is not None and dl_vs_s3b_pct > 0) else ""
+            print(f"    DL      NCC={dl_ncc:.4f}  SSIM={dl_metrics['ssim']:.4f}"
+                  f"  (vs pre: {dl_vs_pre_pct:+.1f}%"
+                  f"{f', vs 3B: {dl_vs_s3b_pct:+.1f}%' if dl_vs_s3b_pct is not None else ''}"
+                  f"){win_marker}")
 
     # 汇总
     df = pd.DataFrame(all_results)
     df.to_csv(os.path.join(output_dir, 'three_way_comparison.csv'), index=False)
 
+    n_pairs = len(df)
+
     print("\n" + "=" * 70)
-    print("SUMMARY (mean +/- std)")
+    print(f"SUMMARY ({n_pairs} pairs)")
     print("=" * 70)
-    for method, prefix in [('pre', 'pre'), ('stage3b', 'stage3b'), ('DL', 'dl')]:
+
+    # Mean NCC / SSIM for each method
+    print("\n  Method          NCC (mean±std)       SSIM (mean±std)")
+    print("  " + "-" * 58)
+    for method, prefix in [('pre', 'pre'), ('Stage3B', 'stage3b'), ('DL', 'dl')]:
         ncc_col = f'{prefix}_ncc'
-        mse_col = f'{prefix}_mse'
+        ssim_col = f'{prefix}_ssim'
         if ncc_col in df.columns and df[ncc_col].notna().any():
-            ncc_vals = df[ncc_col].dropna()
-            mse_vals = df[mse_col].dropna()
-            print(f"  {method:>8s}  NCC={ncc_vals.mean():.4f}+/-{ncc_vals.std():.4f}  "
-                  f"MSE={mse_vals.mean():.4f}+/-{mse_vals.std():.4f}")
+            ncc_v = df[ncc_col].dropna()
+            ssim_str = ""
+            if ssim_col in df.columns and df[ssim_col].notna().any():
+                ssim_v = df[ssim_col].dropna()
+                ssim_str = f"{ssim_v.mean():.4f}±{ssim_v.std():.4f}"
+            print(f"  {method:<14s}  {ncc_v.mean():.4f}±{ncc_v.std():.4f}       {ssim_str}")
 
-    if 'dl_ncc_gain_vs_pre' in df.columns:
-        gain = df['dl_ncc_gain_vs_pre']
-        print(f"\n  DL vs pre:     NCC gain = {gain.mean():+.4f} +/- {gain.std():.4f}")
-    if 'dl_ncc_gain_vs_stage3b' in df.columns:
-        gain = df['dl_ncc_gain_vs_stage3b'].dropna()
-        if len(gain) > 0:
-            print(f"  DL vs stage3b: NCC gain = {gain.mean():+.4f} +/- {gain.std():.4f}")
+    # Percentage improvements
+    print("\n  Improvements:")
+    if df['dl_vs_pre_pct'].notna().any():
+        pct = df['dl_vs_pre_pct'].dropna()
+        print(f"    DL vs pre:      {pct.mean():+.1f}% NCC improvement (mean)")
+    if df['dl_vs_stage3b_pct'].notna().any():
+        pct = df['dl_vs_stage3b_pct'].dropna()
+        print(f"    DL vs Stage3B:  {pct.mean():+.1f}% NCC improvement (mean)")
 
+    # Win/loss count
+    if 'dl_beats_stage3b' in df.columns and df['dl_beats_stage3b'].notna().any():
+        wins = df['dl_beats_stage3b'].dropna()
+        n_win = int(wins.sum())
+        n_total = len(wins)
+        print(f"\n  DL beats Stage3B: {n_win}/{n_total} pairs ({n_win/n_total*100:.0f}%)")
+
+    # Jacobian quality
     if 'dl_jac_pct_neg' in df.columns:
         jac = df['dl_jac_pct_neg']
-        print(f"\n  DL Jacobian folding: {jac.mean():.2f}% +/- {jac.std():.2f}%")
+        print(f"  DL Jacobian folding: {jac.mean():.2f}% ± {jac.std():.2f}%")
 
-    print("=" * 70)
-    print(f"\nResults saved to: {output_dir}/three_way_comparison.csv")
+    print("\n" + "=" * 70)
+    print(f"Results saved to: {output_dir}/three_way_comparison.csv")
 
     return df
 

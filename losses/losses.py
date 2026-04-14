@@ -64,40 +64,64 @@ class NCC(nn.Module):
         B, C, H, W = y_true.shape
         win = self.win_size
         pad = win // 2
-        n = win * win
 
         # Uniform summing kernel — shape (C, 1, win, win) for groups=C
         weight = torch.ones(C, 1, win, win,
                             device=y_true.device, dtype=y_true.dtype)
 
-        # Local sums via grouped convolution (each channel independent)
+        if mask is not None:
+            # Mask-aware NCC: only valid pixels contribute to local statistics.
+            # Expand mask (B,1,H,W) to (B,C,H,W) for channel-wise convolution
+            mask_c = mask.expand_as(y_true)
+
+            # Zero out invalid pixels before convolution
+            y_true_m = y_true * mask_c
+            y_pred_m = y_pred * mask_c
+
+            # Local valid count per window (avoid division by zero)
+            local_count = F.conv2d(mask_c, weight, padding=pad, groups=C)
+            local_count = local_count.clamp(min=1.0)
+
+            # Local sums over valid pixels only
+            sum_I  = F.conv2d(y_true_m,              weight, padding=pad, groups=C)
+            sum_J  = F.conv2d(y_pred_m,              weight, padding=pad, groups=C)
+            sum_I2 = F.conv2d(y_true_m * y_true_m,   weight, padding=pad, groups=C)
+            sum_J2 = F.conv2d(y_pred_m * y_pred_m,   weight, padding=pad, groups=C)
+            sum_IJ = F.conv2d(y_true_m * y_pred_m,   weight, padding=pad, groups=C)
+
+            # Local means using actual valid count (not fixed n)
+            mu_I = sum_I / local_count
+            mu_J = sum_J / local_count
+
+            var_I  = sum_I2 / local_count - mu_I * mu_I
+            var_J  = sum_J2 / local_count - mu_J * mu_J
+            cov_IJ = sum_IJ / local_count - mu_I * mu_J
+
+            cc = cov_IJ * cov_IJ / (var_I.clamp(min=0) * var_J.clamp(min=0)
+                                     + self.eps)
+
+            # Only aggregate over valid center pixels
+            cc = cc * mask_c
+            num_valid = mask_c.sum().clamp(min=1.0)
+            return -(cc.sum() / num_valid)
+
+        # No mask: original fast path
+        n = win * win
         sum_I  = F.conv2d(y_true,         weight, padding=pad, groups=C)
         sum_J  = F.conv2d(y_pred,         weight, padding=pad, groups=C)
         sum_I2 = F.conv2d(y_true * y_true, weight, padding=pad, groups=C)
         sum_J2 = F.conv2d(y_pred * y_pred, weight, padding=pad, groups=C)
         sum_IJ = F.conv2d(y_true * y_pred, weight, padding=pad, groups=C)
 
-        # Local means
         mu_I = sum_I / n
         mu_J = sum_J / n
 
-        # Local (co)variances — using E[X²] - E[X]² form
         var_I  = sum_I2 / n - mu_I * mu_I
         var_J  = sum_J2 / n - mu_J * mu_J
         cov_IJ = sum_IJ / n - mu_I * mu_J
 
-        # NCC² per position = cov² / (var_I * var_J)
-        # Clamp variances to zero (can go slightly negative from numerics)
         cc = cov_IJ * cov_IJ / (var_I.clamp(min=0) * var_J.clamp(min=0)
                                  + self.eps)
-
-        if mask is not None:
-            # mask: (B, 1, H, W) -> broadcast to (B, C, H, W)
-            cc = cc * mask
-            # 仅在有效区域内求均值
-            num_valid = mask.sum().clamp(min=1.0) * C
-            return -(cc.sum() / num_valid)
-
         return -cc.mean()
 
 
@@ -131,20 +155,27 @@ class MultiScaleNCC(nn.Module):
 
     def forward(self, y_pred, y_true, mask=None):
         total_loss = 0.0
+        weight_sum = sum(self.weights)
         for scale, ncc, weight in zip(self.scales, self.ncc_modules, self.weights):
             if scale == 1:
                 pred_s = y_pred
                 true_s = y_true
                 mask_s = mask
             else:
-                pred_s = F.avg_pool2d(y_pred, kernel_size=scale, stride=scale)
-                true_s = F.avg_pool2d(y_true, kernel_size=scale, stride=scale)
-                mask_s = F.avg_pool2d(mask, kernel_size=scale, stride=scale) if mask is not None else None
-                # 二值化 mask（pooling 后可能不是 0/1）
-                if mask_s is not None:
-                    mask_s = (mask_s > 0.5).float()
+                if mask is not None:
+                    # Mask-aware pooling: pool(img*mask)/pool(mask) to avoid
+                    # invalid pixels diluting valid blocks
+                    mask_pool = F.avg_pool2d(mask, kernel_size=scale, stride=scale)
+                    mask_pool_safe = mask_pool.clamp(min=1e-6)
+                    pred_s = F.avg_pool2d(y_pred * mask, kernel_size=scale, stride=scale) / mask_pool_safe
+                    true_s = F.avg_pool2d(y_true * mask, kernel_size=scale, stride=scale) / mask_pool_safe
+                    mask_s = (mask_pool > 0.5).float()
+                else:
+                    pred_s = F.avg_pool2d(y_pred, kernel_size=scale, stride=scale)
+                    true_s = F.avg_pool2d(y_true, kernel_size=scale, stride=scale)
+                    mask_s = None
             total_loss = total_loss + weight * ncc(pred_s, true_s, mask=mask_s)
-        return total_loss
+        return total_loss / weight_sum
 
 
 class MSE(nn.Module):
@@ -153,7 +184,9 @@ class MSE(nn.Module):
     def forward(self, y_pred, y_true, mask=None):
         if mask is not None:
             diff_sq = (y_pred - y_true) ** 2 * mask
-            return diff_sq.sum() / mask.sum().clamp(min=1.0)
+            # mask is (B,1,H,W), broadcasts to (B,C,H,W); count must include C
+            num_valid = mask.sum().clamp(min=1.0) * y_pred.shape[1]
+            return diff_sq.sum() / num_valid
         return F.mse_loss(y_pred, y_true)
 
 
@@ -197,13 +230,15 @@ class Grad(nn.Module):
             # 对 mask 做相应裁剪，只在有效区域内计算正则
             mask_dy = (mask[:, :, 1:, :] * mask[:, :, :-1, :])  # (B, 1, H-1, W)
             mask_dx = (mask[:, :, :, 1:] * mask[:, :, :, :-1])  # (B, 1, H, W-1)
+            # flow is (B,2,...), mask is (B,1,...); multiply denominator by n_channels
+            n_ch = flow.shape[1]
 
             if self.penalty == 'l2':
-                loss_dy = (dy.pow(2) * mask_dy).sum() / mask_dy.sum().clamp(min=1.0)
-                loss_dx = (dx.pow(2) * mask_dx).sum() / mask_dx.sum().clamp(min=1.0)
+                loss_dy = (dy.pow(2) * mask_dy).sum() / (mask_dy.sum().clamp(min=1.0) * n_ch)
+                loss_dx = (dx.pow(2) * mask_dx).sum() / (mask_dx.sum().clamp(min=1.0) * n_ch)
             else:
-                loss_dy = (dy.abs() * mask_dy).sum() / mask_dy.sum().clamp(min=1.0)
-                loss_dx = (dx.abs() * mask_dx).sum() / mask_dx.sum().clamp(min=1.0)
+                loss_dy = (dy.abs() * mask_dy).sum() / (mask_dy.sum().clamp(min=1.0) * n_ch)
+                loss_dx = (dx.abs() * mask_dx).sum() / (mask_dx.sum().clamp(min=1.0) * n_ch)
             return (loss_dy + loss_dx) / 2.0
 
         if self.penalty == 'l2':
@@ -245,9 +280,11 @@ class Diffusion(nn.Module):
             m_d2y = mask[:, :, 2:, :] * mask[:, :, 1:-1, :] * mask[:, :, :-2, :]
             m_d2x = mask[:, :, :, 2:] * mask[:, :, :, 1:-1] * mask[:, :, :, :-2]
             m_dxy = mask[:, :, 1:, 1:] * mask[:, :, 1:, :-1] * mask[:, :, :-1, 1:] * mask[:, :, :-1, :-1]
-            loss = ((d2y.pow(2) * m_d2y).sum() / m_d2y.sum().clamp(min=1.0)
-                    + (d2x.pow(2) * m_d2x).sum() / m_d2x.sum().clamp(min=1.0)
-                    + 2 * (dxy.pow(2) * m_dxy).sum() / m_dxy.sum().clamp(min=1.0))
+            # flow is (B,2,...), mask is (B,1,...); account for n_channels in denominator
+            n_ch = flow.shape[1]
+            loss = ((d2y.pow(2) * m_d2y).sum() / (m_d2y.sum().clamp(min=1.0) * n_ch)
+                    + (d2x.pow(2) * m_d2x).sum() / (m_d2x.sum().clamp(min=1.0) * n_ch)
+                    + 2 * (dxy.pow(2) * m_dxy).sum() / (m_dxy.sum().clamp(min=1.0) * n_ch))
             return loss / 4.0
 
         loss = d2y.pow(2).mean() + d2x.pow(2).mean() + 2 * dxy.pow(2).mean()
@@ -284,11 +321,14 @@ class BendingEnergy(nn.Module):
             m_d2y = mask[:, :, 2:, :] * mask[:, :, 1:-1, :] * mask[:, :, :-2, :]
             m_d2x = mask[:, :, :, 2:] * mask[:, :, :, 1:-1] * mask[:, :, :, :-2]
             m_dxy = mask[:, :, 1:, 1:] * mask[:, :, 1:, :-1] * mask[:, :, :-1, 1:] * mask[:, :, :-1, :-1]
-            return ((d2y.pow(2) * m_d2y).sum() / m_d2y.sum().clamp(min=1.0)
-                    + (d2x.pow(2) * m_d2x).sum() / m_d2x.sum().clamp(min=1.0)
-                    + 2 * (dxy.pow(2) * m_dxy).sum() / m_dxy.sum().clamp(min=1.0))
+            # flow is (B,2,...), mask is (B,1,...); account for n_channels in denominator
+            n_ch = flow.shape[1]
+            loss = ((d2y.pow(2) * m_d2y).sum() / (m_d2y.sum().clamp(min=1.0) * n_ch)
+                    + (d2x.pow(2) * m_d2x).sum() / (m_d2x.sum().clamp(min=1.0) * n_ch)
+                    + 2 * (dxy.pow(2) * m_dxy).sum() / (m_dxy.sum().clamp(min=1.0) * n_ch))
+            return loss / 4.0
 
-        return d2y.pow(2).mean() + d2x.pow(2).mean() + 2 * dxy.pow(2).mean()
+        return (d2y.pow(2).mean() + d2x.pow(2).mean() + 2 * dxy.pow(2).mean()) / 4.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -334,7 +374,7 @@ class RegistrationLoss(nn.Module):
 
         if self.bidir_weight > 0 and warped_target is not None and source is not None:
             sim_inv = self.sim_loss(warped_target, source, mask=mask)
-            sim = sim + self.bidir_weight * sim_inv
+            sim = (sim + self.bidir_weight * sim_inv) / (1.0 + self.bidir_weight)
 
         reg = self.reg_loss(flow, mask=mask)
         total = sim + self.reg_weight * reg
